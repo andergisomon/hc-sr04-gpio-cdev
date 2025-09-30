@@ -27,7 +27,7 @@ dependencies = [
 
 [[package]]
 name = "hcsr04-gpio-cdev"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gpio-cdev",
 ]
