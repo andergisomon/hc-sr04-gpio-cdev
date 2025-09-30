@@ -102,16 +102,19 @@ impl HcSr04 {
         Ok(dist.to_val())
     }
 
+    /// Returns distance in m
     pub fn dist_meter(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
-        Ok(DistanceUnit::Meter(res))
+        Ok(DistanceUnit::Meter(res/100.0))
     }
 
+    /// Returns distance in cm
     pub fn dist_cm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
         Ok(DistanceUnit::Cm(res))
     }
 
+    /// Returns distance in mm
     pub fn dist_mm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
         Ok(DistanceUnit::Mm(10.0*res))
