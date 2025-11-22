@@ -1,6 +1,5 @@
 use gpio_cdev::{Chip, EventRequestFlags, EventType, Line, LineHandle, LineRequestFlags};
 use std::{thread::sleep, time::*};
-use libc::*;
 use std::os::unix::io::AsRawFd;
 
 const DEFAULT_TIMEOUT_MICROSECS: u64 = 8746;
@@ -84,9 +83,9 @@ pub fn range_to_timeout(range: DistanceUnit) -> Result<Duration, String> {
 
 impl HcSr04 {
     pub fn new(trig: u32, echo: u32) -> Result<Self, HcSr04Error> {
-        let mut chip = Chip::new("/dev/gpiochip4");
+        let req_chip = Chip::new("/dev/gpiochip4");
 
-        let mut chip = match chip.ok() {
+        let mut chip = match req_chip.ok() {
             Some(chip) => chip,
             None => return Err(HcSr04Error::Init)
         };
