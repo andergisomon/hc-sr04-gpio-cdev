@@ -84,7 +84,6 @@ impl HcSr04 {
             Some(val) => val,
             None => Duration::from_micros(DEFAULT_TIMEOUT_MICROSECS)
         };
-        sleep(effective_timeout); // sleep for half the transit time
 
         while polling {
             let events = self.echo.events(LineRequestFlags::INPUT, EventRequestFlags::BOTH_EDGES, "hc-sr04-echo")?;
@@ -93,6 +92,9 @@ impl HcSr04 {
             }
 
             for event in events {
+                if start_time.elapsed() > 2 * effective_timeout {
+                    break;
+                }
                 match event?.event_type() {
                     EventType::RisingEdge => {
                         tx_time = Instant::now();
