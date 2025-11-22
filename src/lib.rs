@@ -1,6 +1,8 @@
 use gpio_cdev::{Chip, Error, EventRequestFlags, LineHandle, Line, LineRequestFlags, EventType};
 use std::{thread::sleep, time::*};
 
+const DEFAULT_TIMEOUT_MICROSECS: u64 = 5831;
+
 pub enum DistanceUnit {
     Mm(f64),
     Cm(f64),
@@ -65,25 +67,30 @@ impl HcSr04 {
         })
     }
 
-    /// Returns distance in cm by default
+    /// Returns distance in cm by default.
     fn dist(&mut self, timeout: Option<Duration>) -> Result<f64, Error> {
         self.trig.set_value(0)?;
-        std::thread::sleep(Duration::from_micros(2));
+        sleep(Duration::from_micros(2));
         self.trig.set_value(1)?;
-        std::thread::sleep(Duration::from_micros(10));
+        sleep(Duration::from_micros(10));
         self.trig.set_value(0)?;
 
         let mut tx_time = Instant::now();
         let mut dist: DistanceUnit = DistanceUnit::Cm(0.0);
+
         let mut polling = true;
+        let start_time = Instant::now();
+        let effective_timeout = match timeout {
+            Some(val) => val,
+            None => Duration::from_micros(DEFAULT_TIMEOUT_MICROSECS)
+        };
+        sleep(effective_timeout); // sleep for half the transit time
 
         while polling {
-            match timeout {
-                Some(timeout) => sleep(timeout),
-                None => {}
+            let events = self.echo.events(LineRequestFlags::INPUT, EventRequestFlags::BOTH_EDGES, "hc-sr04-echo")?;
+            if start_time.elapsed() > 2 * effective_timeout {
+                break;
             }
-    
-            let events = self.echo.events(LineRequestFlags::INPUT, EventRequestFlags::BOTH_EDGES, "hc-sr04-echo")?;        
 
             for event in events {
                 match event?.event_type() {
@@ -102,19 +109,19 @@ impl HcSr04 {
         Ok(dist.to_val())
     }
 
-    /// Returns distance in m
+    /// Returns distance in m. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_meter(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
         Ok(DistanceUnit::Meter(res/100.0))
     }
 
-    /// Returns distance in cm
+    /// Returns distance in cm. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_cm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
         Ok(DistanceUnit::Cm(res))
     }
 
-    /// Returns distance in mm
+    /// Returns distance in mm. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_mm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, Error> {
         let res = self.dist(timeout)?;
         Ok(DistanceUnit::Mm(10.0*res))
