@@ -15,3 +15,4 @@ path = "usage_example/example.rs"
 
 [dependencies]
 gpio-cdev = "0.6.0"
+libc = "0.2.177"
