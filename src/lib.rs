@@ -112,7 +112,7 @@ impl HcSr04 {
     }
 
     /// Returns distance in cm by default.
-    fn dist(&mut self, timeout: Option<Duration>) -> Result<f64, HcSr04Error> {
+    fn dist(&mut self, timeout: Option<Duration>) -> Result<Option<f64>, HcSr04Error> {
         match self.trig.set_value(0).ok() {
             Some(_) => (),
             None => return Err(HcSr04Error::Io)
@@ -132,7 +132,7 @@ impl HcSr04 {
             None => return Err(HcSr04Error::Io)
         }
 
-        let mut dist: DistanceUnit = DistanceUnit::Cm(0.0);
+        let mut dist: Option<f64> = None;
         let start_time = Instant::now();
         let mut tx_time = Instant::now();
 
@@ -168,28 +168,36 @@ impl HcSr04 {
         if let Some(Ok(event)) = events.next() {
             if event.event_type() == EventType::FallingEdge {
                 let tof: Duration = Instant::now() - tx_time;
-                dist.write_val(50.0*(SPEED_OF_SOUND.to_val() * tof.as_secs_f64()));
-
+                dist = Some(50.0*(SPEED_OF_SOUND.to_val() * tof.as_secs_f64()))
             }
         }
-        Ok(dist.to_val())
+        Ok(dist)
     }
 
     /// Returns distance in m. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_meter(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, HcSr04Error> {
         let res = self.dist(timeout)?;
-        Ok(DistanceUnit::Meter(res/100.0))
+        match res {
+            Some(res) => Ok(DistanceUnit::Meter(res/100.0)),
+            None => Err(HcSr04Error::Io)
+        }
     }
 
     /// Returns distance in cm. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_cm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, HcSr04Error> {
         let res = self.dist(timeout)?;
-        Ok(DistanceUnit::Cm(res))
+        match res {
+            Some(res) => Ok(DistanceUnit::Cm(res)),
+            None => Err(HcSr04Error::Io)
+        }
     }
 
     /// Returns distance in mm. Leaving `timeout` as `None` will give a default timeout of 5.831ms.
     pub fn dist_mm(&mut self, timeout: Option<Duration>) -> Result<DistanceUnit, HcSr04Error> {
         let res = self.dist(timeout)?;
-        Ok(DistanceUnit::Mm(10.0*res))
+        match res {
+            Some(res) => Ok(DistanceUnit::Mm(10.0*res)),
+            None => Err(HcSr04Error::Io)
+        }
     }
 }
