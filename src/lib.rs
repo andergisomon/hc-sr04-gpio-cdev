@@ -8,6 +8,8 @@ const DEFAULT_TIMEOUT_MICROSECS: u64 = 8746;
 pub enum HcSr04Error {
     Io,
     Init,
+    LineEventHandleRequest,
+    PollFd
 }
 
 pub enum DistanceUnit {
@@ -51,6 +53,8 @@ const SPEED_OF_SOUND: VelocityUnit = VelocityUnit::MetersPerSecs(343.0);
 pub struct HcSr04 {
     trig: LineHandle,
     echo: Line,
+    /// minimum distance reading that will not be ignored
+    dist_threshold: DistanceUnit,
 }
 
 fn poll_with_timeout(fd: i32, timeout: Duration) -> Result<bool, HcSr04Error> {
@@ -82,7 +86,7 @@ pub fn range_to_timeout(range: DistanceUnit) -> Result<Duration, String> {
 }
 
 impl HcSr04 {
-    pub fn new(trig: u32, echo: u32) -> Result<Self, HcSr04Error> {
+    pub fn new(trig: u32, echo: u32, dist_threshold: DistanceUnit) -> Result<Self, HcSr04Error> {
         let req_chip = Chip::new("/dev/gpiochip4");
 
         let mut chip = match req_chip.ok() {
@@ -107,7 +111,8 @@ impl HcSr04 {
 
         Ok(Self {
             trig: trig_handle,
-            echo: echo_line
+            echo: echo_line,
+            dist_threshold: dist_threshold
         })
     }
 
@@ -143,7 +148,7 @@ impl HcSr04 {
 
         let mut events = match events_req.ok() {
             Some(events) => events,
-            None => return Err(HcSr04Error::Io)
+            None => return Err(HcSr04Error::LineEventHandleRequest)
         };
         let fd = events.as_raw_fd();
 
@@ -153,7 +158,7 @@ impl HcSr04 {
         };
 
         if !poll_with_timeout(fd, effective_timeout).unwrap_or_else(|_| -> bool {false}) {
-            return Err(HcSr04Error::Io)
+            return Err(HcSr04Error::PollFd)
         }
         if let Some(Ok(event)) = events.next() {
             if event.event_type() == EventType::RisingEdge {
@@ -163,12 +168,22 @@ impl HcSr04 {
 
         let remaining = effective_timeout.saturating_sub(start_time.elapsed());
         if !poll_with_timeout(fd, remaining).unwrap_or_else(|_| -> bool {false}) {
-            return Err(HcSr04Error::Io)
+            return Err(HcSr04Error::PollFd)
         }
         if let Some(Ok(event)) = events.next() {
             if event.event_type() == EventType::FallingEdge {
                 let tof: Duration = Instant::now() - tx_time;
-                dist = Some(50.0*(SPEED_OF_SOUND.to_val() * tof.as_secs_f64()))
+                dist = Some(50.0*(SPEED_OF_SOUND.to_val() * tof.as_secs_f64()));
+
+                let dist_threshold = match self.dist_threshold {
+                    DistanceUnit::Cm(val) => val,
+                    DistanceUnit::Mm(val) => val / 10.0,
+                    DistanceUnit::Meter(val) => val * 100.0,
+                };
+
+                if dist < Some(dist_threshold) {
+                    return Ok(None)
+                }
             }
         }
         Ok(dist)
